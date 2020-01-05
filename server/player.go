@@ -13,7 +13,7 @@ import (
 	"github.com/faiface/beep/wav"
 	"io"
 	"io/ioutil"
-	"os"
+	//"os"
 	"time"
 )
 
@@ -44,12 +44,16 @@ func (p *Player) Init() {
 	p.queue = []ReadSeekerCloser{}
 	p.queueIsComplete = true
 	// testing
-	f, _ := os.Open("/home/ngnius/Music/MusicMP3/5 Seconds Of Summer/Ghostbusters/Girls_Talk_Boys.mp3")
-	p.Enqueue(f)
+	//f, _ := os.Open("/home/ngnius/Music/MusicMP3/5 Seconds Of Summer/Ghostbusters/Girls_Talk_Boys.mp3")
+	//p.EnqueueMany(f)
 }
 
 func (p *Player) Enqueue(audioFile ReadSeekerCloser) {
 	p.queue = append(p.queue, audioFile)
+}
+
+func (p *Player) EnqueueMany(audioFiles ...ReadSeekerCloser) {
+	p.queue = append(p.queue, audioFiles...)
 }
 
 func (p *Player) Play() {
@@ -70,6 +74,21 @@ func (p *Player) Pause() {
 	}
 }
 
+func (p *Player) Next() {
+	if (!p.queueIsComplete) {
+		p.songDone <- true
+	} else {
+		p.queueIndex++
+	}
+}
+
+func (p *Player) Previous() {
+	p.queueIndex--
+	if (!p.queueIsComplete) {
+		p.songDone <- false
+	}
+}
+
 func (p *Player) handleSongEnd() {
 	fmt.Println("Starting queue handler")
 	handlerLoop:
@@ -80,20 +99,17 @@ func (p *Player) handleSongEnd() {
 			if next {
 				p.queueIndex++
 			}
-			fmt.Printf("Now playing index %d\n", p.queueIndex)
 			var decodeErr error
 			p.streamer, p.format, decodeErr = decodeAudioFile(p.queue[p.queueIndex])
 			if decodeErr != nil {
 				fmt.Println(decodeErr)
 			}
 			if (!p.isSpeakerInited) {
-				fmt.Println("Initialising speaker")
 				p.isSpeakerInited = true
 				speaker.Init(p.format.SampleRate, p.format.SampleRate.N(p.Config.BufferedTime))
 			}
-			fmt.Println("Playing audio")
+			speaker.Clear()
 			speaker.Play(beep.Seq(p.streamer, beep.Callback(func() { p.songDone <- true })))
-			fmt.Println("Song end handling done")
 		} else {
 			fmt.Println("Queue finished, shutting down queue handler")
 			p.queueIsComplete = true
