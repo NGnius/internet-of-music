@@ -32,7 +32,7 @@ type Player struct {
 func NewPlayer() (p *Player) {
 	p = &Player{
 		Config: PlayerConfig{
-			BufferedTime: 10000,
+			BufferedTime: time.Second/100,
 		},
 	}
 	return
@@ -44,7 +44,7 @@ func (p *Player) Init() {
 	p.queue = []ReadSeekerCloser{}
 	p.queueIsComplete = true
 	// testing
-	f, _ := os.Open("/home/ngnius/Music/MusicFlac/Fall Out Boy/M A N I A/02 - Fall Out Boy - The Last of the Real Ones.flac")
+	f, _ := os.Open("/home/ngnius/Music/MusicMP3/5 Seconds Of Summer/Ghostbusters/Girls_Talk_Boys.mp3")
 	p.Enqueue(f)
 }
 
@@ -91,7 +91,9 @@ func (p *Player) handleSongEnd() {
 				p.isSpeakerInited = true
 				speaker.Init(p.format.SampleRate, p.format.SampleRate.N(p.Config.BufferedTime))
 			}
+			fmt.Println("Playing audio")
 			speaker.Play(beep.Seq(p.streamer, beep.Callback(func() { p.songDone <- true })))
+			fmt.Println("Song end handling done")
 		} else {
 			fmt.Println("Queue finished, shutting down queue handler")
 			p.queueIsComplete = true
