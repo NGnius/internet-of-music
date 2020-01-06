@@ -1,6 +1,6 @@
 // Created by NGnius 2020-01-05
 
-package main
+package iomserv
 
 import (
 	"bytes"
@@ -20,19 +20,20 @@ import (
 type Player struct {
 	streamer        beep.Streamer
 	format          beep.Format
+	control         *beep.Ctrl
 	queue           []ReadSeekerCloser
 	queueIndex      int
 	queueIsComplete bool
 	Config          PlayerConfig
 	songDone        chan bool
-	isSpeakerLocked bool
+	isPaused        bool
 	isSpeakerInited bool
 }
 
 func NewPlayer() (p *Player) {
-	p = &Player{
+	p = &Player {
 		Config: PlayerConfig{
-			BufferedTime: time.Second/100,
+			BufferedTime: Buffer,
 		},
 	}
 	return
@@ -43,9 +44,6 @@ func (p *Player) Init() {
 	p.queueIndex = -1
 	p.queue = []ReadSeekerCloser{}
 	p.queueIsComplete = true
-	// testing
-	//f, _ := os.Open("/home/ngnius/Music/MusicMP3/5 Seconds Of Summer/Ghostbusters/Girls_Talk_Boys.mp3")
-	//p.EnqueueMany(f)
 }
 
 func (p *Player) Enqueue(audioFile ReadSeekerCloser) {
@@ -57,9 +55,9 @@ func (p *Player) EnqueueMany(audioFiles ...ReadSeekerCloser) {
 }
 
 func (p *Player) Play() {
-	if p.isSpeakerLocked {
-		p.isSpeakerLocked = false
-		speaker.Unlock()
+	if p.isPaused {
+		p.isPaused = false
+		p.control.Paused = false
 	}
 	if p.queueIsComplete {
 		go p.handleSongEnd()
@@ -68,9 +66,9 @@ func (p *Player) Play() {
 }
 
 func (p *Player) Pause() {
-	if !p.isSpeakerLocked {
-		p.isSpeakerLocked = true
-		speaker.Lock()
+	if !p.isPaused {
+		p.isPaused = true
+		p.control.Paused = true
 	}
 }
 
@@ -103,13 +101,18 @@ func (p *Player) handleSongEnd() {
 			p.streamer, p.format, decodeErr = decodeAudioFile(p.queue[p.queueIndex])
 			if decodeErr != nil {
 				fmt.Println(decodeErr)
+			} else {
+				if (!p.isSpeakerInited) {
+					p.isSpeakerInited = true
+					speaker.Init(p.format.SampleRate, p.format.SampleRate.N(p.Config.BufferedTime))
+				}
+				p.control = &beep.Ctrl {
+					Streamer: p.streamer,
+					Paused: p.isPaused,
+				}
+				speaker.Clear()
+				speaker.Play(beep.Seq(p.control, beep.Callback(func() { p.songDone <- true })))
 			}
-			if (!p.isSpeakerInited) {
-				p.isSpeakerInited = true
-				speaker.Init(p.format.SampleRate, p.format.SampleRate.N(p.Config.BufferedTime))
-			}
-			speaker.Clear()
-			speaker.Play(beep.Seq(p.streamer, beep.Callback(func() { p.songDone <- true })))
 		} else {
 			fmt.Println("Queue finished, shutting down queue handler")
 			p.queueIsComplete = true
@@ -125,7 +128,7 @@ func decodeAudioFile(f ReadSeekerCloser) (streamer beep.Streamer, format beep.Fo
 		return
 	}
 	mime := detectAudioType(data)
-	fmt.Println("File decoded as " + mime)
+	//fmt.Println("File decoded as " + mime)
 	f.Seek(0, 0)
 	switch mime {
 	case "audio/mp3":
@@ -158,7 +161,7 @@ func detectAudioType(data []byte) string {
 		return "audio/vorbis"
 	}
 	//fmt.Println("No format detected")
-	return "?"
+	return ""
 }
 
 type PlayerConfig struct {
