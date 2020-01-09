@@ -1,6 +1,6 @@
 // Created by NGnius 2019-12-31
 
-package iomserv
+package main
 
 import (
 	"fmt"
@@ -14,11 +14,11 @@ const (
 )
 
 var (
-	StartTime     = time.Now()
+	StartTime  = time.Now()
 	PlayerInst *Player
 )
 
-func init() {
+func Initialize() {
 	// parse command line arguments
 	initCommandLineArgs()
 	processCommandLineArgs()
@@ -40,9 +40,17 @@ func init() {
 	fmt.Println("Server initialised in " + time.Since(StartTime).String())
 }
 
-func main() {
+func Run() {
 	// run server
 	fmt.Println("Server starting")
 	fmt.Println(http.ListenAndServe(":"+Port, nil))
 	fmt.Println("Server stopped after " + time.Since(StartTime).String())
+}
+
+func main() {
+	Run()
+}
+
+func init() {
+	Initialize()
 }

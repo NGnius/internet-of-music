@@ -1,6 +1,6 @@
 // Created by NGnius 2020-01-05
 
-package iomserv
+package main
 
 import (
 	"bytes"
