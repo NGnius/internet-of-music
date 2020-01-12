@@ -83,7 +83,9 @@ func (p *Player) Next() {
 }
 
 func (p *Player) Previous() {
-	p.queueIndex--
+	if (p.queueIndex > 0) {
+		p.queueIndex--
+	}
 	if (!p.queueIsComplete) {
 		p.songDone <- false
 	}
@@ -126,6 +128,7 @@ func (p *Player) handleSongEnd() {
 }
 
 func decodeAudioFile(f ReadSeekerCloser) (streamer beep.Streamer, format beep.Format, decodeErr error) {
+	f.Seek(0, 0)
 	var data []byte
 	data, decodeErr = ioutil.ReadAll(f)
 	if decodeErr != nil {
