@@ -34,6 +34,8 @@ func NewPlayer() (p *Player) {
 	p = &Player {
 		Config: PlayerConfig{
 			BufferedTime: Buffer,
+			SampleRate: SampleRate,
+			Quality: Quality,
 		},
 	}
 	return
@@ -102,9 +104,11 @@ func (p *Player) handleSongEnd() {
 			if decodeErr != nil {
 				fmt.Println(decodeErr)
 			} else {
+				targetSR := beep.SampleRate(p.Config.SampleRate)
+				p.streamer = beep.Resample(p.Config.Quality, p.format.SampleRate, targetSR, p.streamer)
 				if (!p.isSpeakerInited) {
 					p.isSpeakerInited = true
-					speaker.Init(p.format.SampleRate, p.format.SampleRate.N(p.Config.BufferedTime))
+					speaker.Init(targetSR, targetSR.N(p.Config.BufferedTime))
 				}
 				p.control = &beep.Ctrl {
 					Streamer: p.streamer,
@@ -166,6 +170,8 @@ func detectAudioType(data []byte) string {
 
 type PlayerConfig struct {
 	BufferedTime time.Duration
+	SampleRate int64
+	Quality int
 }
 
 type ReadSeekerCloser interface {

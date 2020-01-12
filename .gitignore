@@ -17,3 +17,6 @@
 # binaries
 client/client
 server/server
+
+# go dependency resolver checksum
+go.sum
