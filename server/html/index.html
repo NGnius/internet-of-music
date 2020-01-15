@@ -3,13 +3,36 @@
   <head>
     <meta charset="utf-8">
     <title>Internet Of Music</title>
+    <script name="iframe_impl" type="text/javascript">
+      var isLoadingMusicHtml = true
+      backToMusicHtml = function () {
+        iframeObj = document.getElementById("uploaderIframe")
+        if (iframeObj != null && !isLoadingMusicHtml) {
+          isLoadingMusicHtml = true
+          iframeObj.src = "/music.html"
+        } else {
+          isLoadingMusicHtml = false
+        }
+      }
+    </script>
+    <script name="buttons_impl" type="text/javascript">
+      var playXhr = new XMLHttpRequest()
+      var pauseXhr = new XMLHttpRequest()
+      var nextXhr = new XMLHttpRequest()
+      var previousXhr = new XMLHttpRequest()
+    </script>
   </head>
   <body>
-    <h3>Add an audio file to be played</h3>
-    <form class="" action="/music" enctype="multipart/form-data" method="post">
-      <input type="file" name="audio">
-      <br/><br/>
-      <input type="submit" name="submit" value="Add">
-    </form>
+    <div style="height: 99%; width: 99%; position: absolute; overflow: hidden;">
+      <iframe src="/music.html" id="uploaderIframe" onload="backToMusicHtml()" frameborder="0" scrolling="no" style="overflow: hidden; padding: none; border: none; width: 100%; height: 100%;"></iframe>
+    </div>
+    <div style="padding-top: 10%; z-index: 1; position: relative;">
+      <button type="button" value="Play" onclick="playXhr.open('GET', '/play', true); playXhr.send();">Play</button>
+      <button type="button" value="Pause" onclick="pauseXhr.open('GET', '/pause', true); pauseXhr.send();">Pause</button>
+    </div>
+    <div>
+      <button type="button" value="Next" onclick="nextXhr.open('GET', '/next', true); nextXhr.send();">Next</button>
+      <button type="button" value="Previous" onclick="previousXhr.open('GET', '/previous', true); previousXhr.send();">Previous</button>
+    </div>
   </body>
 </html>
