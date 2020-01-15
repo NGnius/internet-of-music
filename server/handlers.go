@@ -29,9 +29,15 @@ func debugHandler(w http.ResponseWriter, r *http.Request) {
 func htmlHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("HTML Handler called")
 	handleChores(w, r)
-	file, err := os.Open(filepath.Join(RootPath, "html/index.html"))
+    urlPath := r.URL.Path
+    if urlPath == "" || urlPath == "/" {
+        urlPath = "index.html"
+    }
+	file, err := os.Open(filepath.Join(RootPath, "html", urlPath))
 	if err != nil {
-		r.Response.StatusCode = 500
+        w.WriteHeader(404)
+        fmt.Printf("404 error while opening %s :: %s\n", filepath.Join(RootPath, "html", urlPath),  err)
+		fmt.Fprintf(w, "Unable to open %s\n%s", filepath.Join("html", urlPath), err)
 		return
 	}
 	io.Copy(w, file)

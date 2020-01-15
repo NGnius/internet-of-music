@@ -59,7 +59,9 @@ func (p *Player) EnqueueMany(audioFiles ...ReadSeekerCloser) {
 func (p *Player) Play() {
 	if p.isPaused {
 		p.isPaused = false
-		p.control.Paused = false
+		if p.control != nil {
+            p.control.Paused = false
+        }
 	}
 	if p.queueIsComplete {
 		go p.handleSongEnd()
@@ -70,7 +72,9 @@ func (p *Player) Play() {
 func (p *Player) Pause() {
 	if !p.isPaused {
 		p.isPaused = true
-		p.control.Paused = true
+		if p.control != nil {
+            p.control.Paused = true
+        }
 	}
 }
 
