@@ -26,6 +26,7 @@ var (
 	SampleRate int64
 	Quality    int
 	Version    bool
+	Debug      bool
 )
 
 func initCommandLineArgs() {
@@ -36,12 +37,18 @@ func initCommandLineArgs() {
 	flag.BoolVar(&Version, "version", false, "Print version information and exit")
 	flag.Int64Var(&SampleRate, "sample", DefaultSampleRate, "Sample rate to output")
 	flag.IntVar(&Quality, "quality", DefaultQuality, "Resampling quality; higher number = higher quality & CPU usage")
+    flag.BoolVar(&Debug, "debug", false, "Enable debug endpoints & logging")
 }
 
 func processCommandLineArgs() {
 	flag.Parse()
 }
 
-func printVersionInfo() {
-	fmt.Printf("Internet of Music v%s\nGo v%s\nCreated & maintained by NGnius\n", CurrentVersion, runtime.Version()[2:])
+func VersionString() string {
+    return "IoM v"+CurrentVersion
+}
+
+func printDebugVersionInfo() {
+	fmt.Printf("Internet of Music v%s\nGo v%s\nCreated & maintained by ", CurrentVersion, runtime.Version()[2:])
+    fmt.Println(Maintainers)
 }
