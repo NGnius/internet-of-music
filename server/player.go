@@ -5,14 +5,16 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
+
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/flac"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 	"github.com/faiface/beep/vorbis"
 	"github.com/faiface/beep/wav"
-	"io"
-	"io/ioutil"
+
 	//"os"
 	"time"
 )
@@ -21,9 +23,7 @@ type Player struct {
 	streamer        beep.Streamer
 	format          beep.Format
 	control         *beep.Ctrl
-	queue           []ReadSeekerCloser
-	queueIndex      int
-	queueIsComplete bool
+	queue           *RollingQueue
 	Config          PlayerConfig
 	songDone        chan bool
 	isPaused        bool
@@ -31,11 +31,19 @@ type Player struct {
 }
 
 func NewPlayer() (p *Player) {
-	p = &Player {
+	qc := QueueConfig{
+		PersistToDisk:   false,
+		MemBufferSize:   2,
+		EnableOvercache: true,
+		OvercacheSize:   2,
+	}
+	rq := NewRollingQueue(qc)
+	p = &Player{
+		queue: &rq,
 		Config: PlayerConfig{
 			BufferedTime: Buffer,
-			SampleRate: SampleRate,
-			Quality: Quality,
+			SampleRate:   SampleRate,
+			Quality:      Quality,
 		},
 	}
 	return
@@ -43,27 +51,33 @@ func NewPlayer() (p *Player) {
 
 func (p *Player) Init() {
 	p.songDone = make(chan bool)
-	p.queueIndex = -1
-	p.queue = []ReadSeekerCloser{}
-	p.queueIsComplete = true
+	rq := NewRollingQueue(QueueConfig{
+		PersistToDisk:   false,
+		MemBufferSize:   2,
+		EnableOvercache: true,
+		OvercacheSize:   2,
+	})
+	p.queue = &rq
 }
 
 func (p *Player) Enqueue(audioFile ReadSeekerCloser) {
-	p.queue = append(p.queue, audioFile)
+	p.queue.Append(audioFile)
 }
 
 func (p *Player) EnqueueMany(audioFiles ...ReadSeekerCloser) {
-	p.queue = append(p.queue, audioFiles...)
+	for _, f := range audioFiles {
+		p.queue.Append(f)
+	}
 }
 
 func (p *Player) Play() {
 	if p.isPaused {
 		p.isPaused = false
 		if p.control != nil {
-            p.control.Paused = false
-        }
+			p.control.Paused = false
+		}
 	}
-	if p.queueIsComplete {
+	if !p.queue.HasNow() && p.queue.HasNext() {
 		go p.handleSongEnd()
 		p.songDone <- true
 	}
@@ -73,59 +87,55 @@ func (p *Player) Pause() {
 	if !p.isPaused {
 		p.isPaused = true
 		if p.control != nil {
-            p.control.Paused = true
-        }
+			p.control.Paused = true
+		}
 	}
 }
 
 func (p *Player) Next() {
-	if (!p.queueIsComplete) {
-		p.songDone <- true
-	} else {
-		p.queueIndex++
-	}
+	p.songDone <- true
 }
 
 func (p *Player) Previous() {
-	if (p.queueIndex > 0) {
-		p.queueIndex--
-	}
-	if (!p.queueIsComplete) {
+	if p.queue.HasPrevious() {
+		p.queue.Previous()
 		p.songDone <- false
 	}
 }
 
 func (p *Player) handleSongEnd() {
 	fmt.Println("Starting queue handler")
-	handlerLoop:
+handlerLoop:
 	for {
-		next := <-p.songDone
-		if len(p.queue) > (p.queueIndex + 1) {
-			p.queueIsComplete = false
-			if next {
-				p.queueIndex++
+		advance := <-p.songDone
+		if (advance && p.queue.HasNext()) || (!advance) {
+			if advance {
+				p.queue.Next()
 			}
 			var decodeErr error
-			p.streamer, p.format, decodeErr = decodeAudioFile(p.queue[p.queueIndex])
+			nowF, nowErr := p.queue.Now()
+			if nowErr != nil {
+				fmt.Println(nowErr)
+			}
+			p.streamer, p.format, decodeErr = decodeAudioFile(nowF)
 			if decodeErr != nil {
 				fmt.Println(decodeErr)
 			} else {
 				targetSR := beep.SampleRate(p.Config.SampleRate)
 				p.streamer = beep.Resample(p.Config.Quality, p.format.SampleRate, targetSR, p.streamer)
-				if (!p.isSpeakerInited) {
+				if !p.isSpeakerInited {
 					p.isSpeakerInited = true
 					speaker.Init(targetSR, targetSR.N(p.Config.BufferedTime))
 				}
-				p.control = &beep.Ctrl {
+				p.control = &beep.Ctrl{
 					Streamer: p.streamer,
-					Paused: p.isPaused,
+					Paused:   p.isPaused,
 				}
 				speaker.Clear()
 				speaker.Play(beep.Seq(p.control, beep.Callback(func() { p.songDone <- true })))
 			}
 		} else {
 			fmt.Println("Queue finished, shutting down queue handler")
-			p.queueIsComplete = true
 			break handlerLoop
 		}
 	}
@@ -177,8 +187,8 @@ func detectAudioType(data []byte) string {
 
 type PlayerConfig struct {
 	BufferedTime time.Duration
-	SampleRate int64
-	Quality int
+	SampleRate   int64
+	Quality      int
 }
 
 type ReadSeekerCloser interface {
