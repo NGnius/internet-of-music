@@ -28,6 +28,7 @@ type Player struct {
 	songDone        chan bool
 	isPaused        bool
 	isSpeakerInited bool
+	isHandling      bool
 }
 
 func NewPlayer() (p *Player) {
@@ -77,7 +78,7 @@ func (p *Player) Play() {
 			p.control.Paused = false
 		}
 	}
-	if !p.queue.HasNow() && p.queue.HasNext() {
+	if !p.isHandling && p.queue.HasNext() {
 		go p.handleSongEnd()
 		p.songDone <- true
 	}
@@ -104,6 +105,7 @@ func (p *Player) Previous() {
 }
 
 func (p *Player) handleSongEnd() {
+	p.isHandling = true
 	fmt.Println("Starting queue handler")
 handlerLoop:
 	for {
@@ -135,6 +137,8 @@ handlerLoop:
 				speaker.Play(beep.Seq(p.control, beep.Callback(func() { p.songDone <- true })))
 			}
 		} else {
+			speaker.Clear()
+			p.isHandling = false
 			fmt.Println("Queue finished, shutting down queue handler")
 			break handlerLoop
 		}
