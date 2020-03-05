@@ -16,17 +16,25 @@ const (
 )
 
 var (
-	test_qc = QueueConfig{
+	full_test_qc = QueueConfig{
 		PersistToDisk:   true,
 		MemBufferSize:   2, // buffer length of 5 (2 previous, current, 2 next)
 		EnableOvercache: true,
 		OvercacheSize:   2, // overflow cache length of 10
 		LoadTimeout:     1 * time.Second,
 	}
+	
+	nopersist_test_qc = QueueConfig{
+		PersistToDisk: false,
+		MemBufferSize: 2,
+		EnableOvercache: true,
+		OvercacheSize: 2,
+		LoadTimeout: 1 * time.Second,
+	}
 )
 
 func TestFullQueue(t *testing.T) {
-	q := NewRollingQueue(test_qc)
+	q := NewRollingQueue(full_test_qc)
 	defer cleanupDummyFiles()
 	defer q.Close()
 	filenames := generateDummyFiles(10)
@@ -75,12 +83,47 @@ func TestFullQueue(t *testing.T) {
 			if readErr != nil {
 				t.Errorf("ioutil.ReadAll(q.Previous()'s file) raised error %s (count = %d)", err, count)
 			}
-			t.Logf("File %d contents: %s", count, string(data))
+			t.Logf("File %d contents: %s", len(filenames)-count-2, string(data))
 		}
 		count++
 	}
 	if count != len(filenames)-1 {
 		t.Fatalf("Expected previous count of %d, got %d", len(filenames)-1, count)
+	}
+}
+
+func TestNoPersist(t *testing.T) {
+	q := NewRollingQueue(nopersist_test_qc)
+	defer cleanupDummyFiles()
+	defer q.Close()
+	filenames := generateDummyFiles(10)
+	for _, filename := range filenames {
+		q.AppendFile(filename)
+	}
+	for q.HasNext() {
+		q.Next()
+	}
+	count := 0
+	t.Log("--- q.Previous() calls")
+	for q.HasPrevious() {
+		f, err := q.Previous()
+		if err != nil {
+			t.Fatalf("q.Previous() raised error %s (count = %d)", err, count)
+		} else {
+			if (f == nil) {
+				t.Fatalf("q.Previous() returned nil file")
+			}
+			f.Seek(0, 0)
+			data, readErr := ioutil.ReadAll(f)
+			if readErr != nil {
+				t.Errorf("ioutil.ReadAll(q.Previous()'s file) raised error %s (count = %d)", err, count)
+			}
+			t.Logf("File %d contents: %s", len(filenames)-count-2, string(data))
+		}
+		count++
+	}
+	if count != nopersist_test_qc.MemBufferSize {
+		t.Fatalf("Expected previous count of %d, got %d", nopersist_test_qc.MemBufferSize, count)
 	}
 }
 

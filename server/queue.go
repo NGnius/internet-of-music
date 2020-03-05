@@ -5,7 +5,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -33,6 +32,7 @@ type QueueConfig struct {
 type RollingQueue struct {
 	currentIndex    int
 	maximumIndex    int                // maximum enqueued item
+	minimumIndex    int                // minimum equeued item
 	memBuffer       []ReadSeekerCloser // middle item is the current index
 	overflowBuffer  []ReadSeekerCloser // overflow cache for upcoming files
 	overflowIndexes []int              // overflow cache files' absolute queue index
@@ -239,6 +239,10 @@ func (rq *RollingQueue) Next() (ReadSeekerCloser, error) {
 		if err != nil {
 			return nil, err
 		}
+		if !rq.config.PersistToDisk {
+			rq.minimumIndex++
+		}
+		//fmt.Printf("Minimum index is now %d\n", rq.minimumIndex)
 	}
 	rq.shiftLeft()
 	rq.currentIndex++
@@ -300,7 +304,7 @@ func (rq *RollingQueue) Previous() (ReadSeekerCloser, error) {
 }
 
 func (rq *RollingQueue) HasPrevious() bool {
-	return (rq.existsInBuffer(rq.currentIndex-1) || rq.config.PersistToDisk) && rq.currentIndex > 0
+	return (rq.existsInBuffer(rq.currentIndex-1) || rq.config.PersistToDisk) && rq.currentIndex > rq.minimumIndex
 }
 
 // Now get the current queue item
@@ -374,8 +378,8 @@ func (rq *RollingQueue) Close() (err error) {
 	}
 	// memBuffer
 	minBufferIndex := 0
-	if rq.existsInBuffer(0) {
-		minBufferIndex = rq.indexInBuffer(0)
+	if rq.existsInBuffer(rq.minimumIndex) {
+		minBufferIndex = rq.indexInBuffer(rq.minimumIndex)
 	}
 	maxBufferIndex := rq.highestBufferIndex()
 	if rq.existsInBuffer(rq.maximumIndex - 1) {
@@ -391,7 +395,7 @@ func (rq *RollingQueue) Close() (err error) {
 	if rq.config.EnableOvercache {
 		for i := 0; i < rq.config.OvercacheSize; i++ {
 			if rq.overflowIndexes[i] != -1 {
-				fmt.Println(rq.overflowIndexes[i])
+				//fmt.Println(rq.overflowIndexes[i])
 				err = rq.overflowBuffer[i].Close()
 				rq.overflowBuffer[i] = nil
 				rq.overflowIndexes[i] = -1
